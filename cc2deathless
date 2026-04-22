@@ -1,0 +1,82 @@
+local Players = game:GetService("Players")
+local lp = Players.LocalPlayer
+local humanPass = lp:WaitForChild("Passes"):WaitForChild("Human")
+local crushers = workspace:WaitForChild("Crushers")
+local list = {}
+local index = 1
+
+local function isValid(v)
+	return v and v.Parent and v:IsA("BoolValue") and v.Name == "KillHumans"
+end
+
+local function refreshList()
+	list = {}
+	for _, v in ipairs(crushers:GetDescendants()) do
+		if isValid(v) then
+			table.insert(list, v)
+		end
+	end
+end
+
+-- Initial population
+refreshList()
+
+-- Listen for new KillHumans values added
+crushers.DescendantAdded:Connect(function(v)
+	if isValid(v) then
+		table.insert(list, v)
+	end
+end)
+
+-- Handle removal
+crushers.DescendantRemoving:Connect(function(v)
+	if isValid(v) then
+		for i, listItem in ipairs(list) do
+			if listItem == v then
+				table.remove(list, i)
+				if index > #list then
+					index = 1
+				end
+				break
+			end
+		end
+	end
+end)
+
+-- Keep Human pass ON
+task.spawn(function()
+	while task.wait(1) do
+		humanPass.Value = true
+	end
+end)
+
+-- Cycle through and disable KillHumans values
+task.spawn(function()
+	while task.wait(1) do
+		if #list == 0 then
+			index = 1
+		else
+			if index > #list then
+				index = 1
+			end
+			
+			local v = list[index]
+			if isValid(v) then
+				v.Value = false
+				-- Set Dismember IntValue to 0
+				local dismember = v:FindFirstChild("Dismember")
+				if dismember and dismember:IsA("IntValue") then
+					dismember.Value = 0
+				end
+			else
+				-- Remove invalid entries
+				table.remove(list, index)
+				if index > #list and #list > 0 then
+					index = 1
+				end
+			end
+			
+			index += 1
+		end
+	end
+end)
