@@ -4,6 +4,12 @@ local humanPass = lp:WaitForChild("Passes"):WaitForChild("Human")
 local crushers = workspace:WaitForChild("Crushers")
 local list = {}
 local index = 1
+local rs = game:GetService("ReplicatedStorage")
+local changeSetting = rs:WaitForChild("rE"):WaitForChild("ChangeSetting")
+
+local function fireInv(state)
+	changeSetting:FireServer("Invincibility", state)
+end
 
 local function isValid(v)
 	return v and v.Parent and v:IsA("BoolValue") and v.Name == "KillHumans"
@@ -79,4 +85,11 @@ task.spawn(function()
 			index += 1
 		end
 	end
+end)
+
+task.spawn(function()
+	task.wait(2)
+	fireInv(false)
+	task.wait(0.2)
+	fireInv(true)
 end)
