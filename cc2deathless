@@ -1,15 +1,51 @@
 local Players = game:GetService("Players")
 local lp = Players.LocalPlayer
+local rs = game:GetService("ReplicatedStorage")
+local changeSetting = rs:WaitForChild("rE"):WaitForChild("ChangeSetting")
+
+-- State tracking
+local isInvincible = false
+local lastInvincibilityTime = 0
+local INVINCIBILITY_COOLDOWN = 5 -- seconds
+
+local function fireInv(state)
+	if state ~= isInvincible or (tick() - lastInvincibilityTime > INVINCIBILITY_COOLDOWN) then
+		changeSetting:FireServer("Invincibility", state)
+		isInvincible = state
+		lastInvincibilityTime = tick()
+	end
+end
+
+-- Optimized invincibility function
+local function ensureInvincibility()
+	-- Only fire if not already invincible or if cooldown has passed
+	if not isInvincible or (tick() - lastInvincibilityTime > INVINCIBILITY_COOLDOWN) then
+		fireInv(true)
+	end
+end
+
+-- Initial invincibility setup
+task.spawn(function()
+	task.wait(2)
+	fireInv(false)
+	task.wait(0.2)
+	fireInv(true)
+end)
+
+-- Handle respawn
+lp.CharacterAdded:Connect(function(character)
+	task.wait(1)
+	ensureInvincibility()
+end)
+
+-- Start with invincibility
+ensureInvincibility()
+
+-- Rest of your script with optimizations
 local humanPass = lp:WaitForChild("Passes"):WaitForChild("Human")
 local crushers = workspace:WaitForChild("Crushers")
 local list = {}
 local index = 1
-local rs = game:GetService("ReplicatedStorage")
-local changeSetting = rs:WaitForChild("rE"):WaitForChild("ChangeSetting")
-
-local function fireInv(state)
-	changeSetting:FireServer("Invincibility", state)
-end
 
 local function isValid(v)
 	return v and v.Parent and v:IsA("BoolValue") and v.Name == "KillHumans"
@@ -49,19 +85,17 @@ crushers.DescendantRemoving:Connect(function(v)
 	end
 end)
 
--- Keep Human pass ON
+-- Combined loop for human pass and crusher management
 task.spawn(function()
 	while task.wait(1) do
+		-- Keep Human pass ON
 		humanPass.Value = true
-	end
-end)
-
--- Cycle through and disable KillHumans values
-task.spawn(function()
-	while task.wait(1) do
-		if #list == 0 then
-			index = 1
-		else
+		
+		-- Check invincibility status periodically
+		ensureInvincibility()
+		
+		-- Cycle through and disable KillHumans values
+		if #list > 0 then
 			if index > #list then
 				index = 1
 			end
@@ -85,11 +119,4 @@ task.spawn(function()
 			index += 1
 		end
 	end
-end)
-
-task.spawn(function()
-	task.wait(2)
-	fireInv(false)
-	task.wait(0.2)
-	fireInv(true)
 end)
