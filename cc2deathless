@@ -1,112 +1,95 @@
 local Players = game:GetService("Players")
-local rs = game:GetService("ReplicatedStorage")
 local lp = Players.LocalPlayer
-local changeSetting = rs:WaitForChild("rE"):WaitForChild("ChangeSetting")
+local humanPass = lp:WaitForChild("Passes"):WaitForChild("Human")
 local crushers = workspace:WaitForChild("Crushers")
-
 local list = {}
-local listChanged = false
+local index = 1
+local rs = game:GetService("ReplicatedStorage")
+local changeSetting = rs:WaitForChild("rE"):WaitForChild("ChangeSetting")
+
+local function fireInv(state)
+	changeSetting:FireServer("Invincibility", state)
+end
 
 local function isValid(v)
-    return v and v.Parent and v:IsA("BoolValue") and v.Name == "KillHumans"
+	return v and v.Parent and v:IsA("BoolValue") and v.Name == "KillHumans"
 end
 
-local function updateList()
-    list = {}
-    for _, v in ipairs(crushers:GetDescendants()) do
-        if isValid(v) then
-            table.insert(list, v)
-        end
-    end
-    listChanged = false
+local function refreshList()
+	list = {}
+	for _, v in ipairs(crushers:GetDescendants()) do
+		if isValid(v) then
+			table.insert(list, v)
+		end
+	end
 end
 
--- Listeners (Only run once)
+-- Initial population
+refreshList()
+
+-- Listen for new KillHumans values added
 crushers.DescendantAdded:Connect(function(v)
-    if isValid(v) then
-        table.insert(list, v)
-        listChanged = true
-    end
+	if isValid(v) then
+		table.insert(list, v)
+	end
 end)
 
+-- Handle removal
 crushers.DescendantRemoving:Connect(function(v)
-    if isValid(v) then
-        listChanged = true
-    end
+	if isValid(v) then
+		for i, listItem in ipairs(list) do
+			if listItem == v then
+				table.remove(list, i)
+				if index > #list then
+					index = 1
+				end
+				break
+			end
+		end
+	end
 end)
 
-updateList()
-
--- Main Loop
+-- Keep Human pass ON
 task.spawn(function()
-    while true do
-        local char = lp.Character
-        if not char then
-            task.wait(0.5)
-            continue
-        end
-        
-        local humanoid = char:FindFirstChild("Humanoid")
-        if not humanoid then
-            task.wait(0.5)
-            continue
-        end
-        
-        -- Create death listener for this character
-        local deathConnection
-        deathConnection = humanoid.Died:Connect(function()
-            deathConnection:Disconnect()
-        end)
-        
-        -- Loop until player dies
-        while humanoid.Health > 0 do
-            task.wait(1)
-            
-            -- Rebuild list only if something changed
-            if listChanged then
-                updateList()
-            end
-            
-            -- Update Pass and Invincibility
-            local pass = lp:FindFirstChild("Passes") and lp.Passes:FindFirstChild("Human")
-            if pass and pass.Value ~= true then
-                pass.Value = true
-            end
-            
-            local inv = char:FindFirstChild("Invincibility")
-            if inv and inv.Value ~= true then
-                inv.Value = true
-            end
-            
-            -- Disable all crushers in the list
-            for i = #list, 1, -1 do
-                local v = list[i]
-                if isValid(v) then
-                    if v.Value ~= false then
-                        v.Value = false
-                    end
-                    local d = v:FindFirstChild("Dismember")
-                    if d and d:IsA("IntValue") and d.Value ~= 0 then
-                        d.Value = 0
-                    end
-                else
-                    table.remove(list, i)
-                end
-            end
-        end
-        
-        -- Player died, disconnect and restart loop
-        deathConnection:Disconnect()
-        task.wait(0.5)
-    end
+	while task.wait(1) do
+		humanPass.Value = true
+	end
 end)
 
--- Initial pulse on spawn
-lp.CharacterAdded:Connect(function()
-    task.wait(2)
-    if changeSetting then
-        changeSetting:FireServer("Invincibility", false)
-        task.wait(0.2)
-        changeSetting:FireServer("Invincibility", true)
-    end
+-- Cycle through and disable KillHumans values
+task.spawn(function()
+	while task.wait(1) do
+		if #list == 0 then
+			index = 1
+		else
+			if index > #list then
+				index = 1
+			end
+			
+			local v = list[index]
+			if isValid(v) then
+				v.Value = false
+				-- Set Dismember IntValue to 0
+				local dismember = v:FindFirstChild("Dismember")
+				if dismember and dismember:IsA("IntValue") then
+					dismember.Value = 0
+				end
+			else
+				-- Remove invalid entries
+				table.remove(list, index)
+				if index > #list and #list > 0 then
+					index = 1
+				end
+			end
+			
+			index += 1
+		end
+	end
+end)
+
+task.spawn(function()
+	task.wait(2)
+	fireInv(false)
+	task.wait(0.2)
+	fireInv(true)
 end)
