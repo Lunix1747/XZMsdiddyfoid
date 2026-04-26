@@ -39,41 +39,65 @@ updateList()
 
 -- Main Loop
 task.spawn(function()
-    while task.wait(1) do
-        -- Rebuild list only if something changed
-        if listChanged then
-            updateList()
-        end
-        
-        -- Update Pass and Invincibility
-        local pass = lp:FindFirstChild("Passes") and lp.Passes:FindFirstChild("Human")
-        if pass then
-            pass.Value = true
-        end
-        
+    while true do
         local char = lp.Character
-        if char then
+        if not char then
+            task.wait(0.5)
+            continue
+        end
+        
+        local humanoid = char:FindFirstChild("Humanoid")
+        if not humanoid then
+            task.wait(0.5)
+            continue
+        end
+        
+        -- Create death listener for this character
+        local deathConnection
+        deathConnection = humanoid.Died:Connect(function()
+            deathConnection:Disconnect()
+        end)
+        
+        -- Loop until player dies
+        while humanoid.Health > 0 do
+            task.wait(1)
+            
+            -- Rebuild list only if something changed
+            if listChanged then
+                updateList()
+            end
+            
+            -- Update Pass and Invincibility
+            local pass = lp:FindFirstChild("Passes") and lp.Passes:FindFirstChild("Human")
+            if pass and pass.Value ~= true then
+                pass.Value = true
+            end
+            
             local inv = char:FindFirstChild("Invincibility")
-            if inv then
+            if inv and inv.Value ~= true then
                 inv.Value = true
             end
-        end
-        
-        -- Disable all crushers in the list
-        for i = #list, 1, -1 do
-            local v = list[i]
-            if isValid(v) then
-                if v.Value ~= false then
-                    v.Value = false
+            
+            -- Disable all crushers in the list
+            for i = #list, 1, -1 do
+                local v = list[i]
+                if isValid(v) then
+                    if v.Value ~= false then
+                        v.Value = false
+                    end
+                    local d = v:FindFirstChild("Dismember")
+                    if d and d:IsA("IntValue") and d.Value ~= 0 then
+                        d.Value = 0
+                    end
+                else
+                    table.remove(list, i)
                 end
-                local d = v:FindFirstChild("Dismember")
-                if d and d:IsA("IntValue") and d.Value ~= 0 then
-                    d.Value = 0
-                end
-            else
-                table.remove(list, i)
             end
         end
+        
+        -- Player died, disconnect and restart loop
+        deathConnection:Disconnect()
+        task.wait(0.5)
     end
 end)
 
